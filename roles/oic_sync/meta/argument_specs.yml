@@ -1,0 +1,66 @@
+---
+argument_specs:
+  main:
+    short_description: Install oic-sync and its systemd timer
+    description:
+      - Installs the oic-sync package of a GitHub release (Debian 12/13 and Proxmox VE 8/9, or
+        EL9/EL10), checks its sha256 against the release SHA256SUMS and its cosign signature
+        when cosign is installed, writes the options file and enables the timers.
+      - On Proxmox VE, the import content type must be enabled on the download storage once
+        (pvesm set local --content iso,vztmpl,backup,import), see the oic-sync README.
+    options:
+      oic_sync_version:
+        description: oic-sync version (a release with packages).
+        type: str
+        default: "0.1.1"
+      oic_sync_release_url:
+        description: Base URL of the release assets.
+        type: str
+      oic_sync_download_dir:
+        description: Download directory on the host.
+        type: str
+        default: /var/cache/oic-sync-packages
+      oic_sync_verify_signature:
+        description: Cosign verification of the package.
+        type: str
+        choices: [auto, required, never]
+        default: auto
+      oic_sync_cosign:
+        description: cosign binary (2.4 or newer) on the host.
+        type: str
+        default: cosign
+      oic_sync_certificate_identity_regexp:
+        description: Expected signer identity of the package (regexp).
+        type: str
+      oic_sync_certificate_oidc_issuer:
+        description: Expected OIDC issuer.
+        type: str
+        default: https://token.actions.githubusercontent.com
+      oic_sync_proxmox_images:
+        description: Images to keep as Proxmox VE templates.
+        type: list
+        elements: str
+        default: []
+      oic_sync_proxmox_extra_args:
+        description: Other options of oic-sync proxmox sync.
+        type: str
+        default: ""
+      oic_sync_proxmox_timer:
+        description: Enable oic-sync-proxmox.timer (default when images are listed).
+        type: bool
+      oic_sync_openstack_cloud:
+        description: clouds.yaml entry for oic-sync openstack sync (OS_CLOUD).
+        type: str
+        default: ""
+      oic_sync_openstack_images:
+        description: Images to sync into Glance.
+        type: list
+        elements: str
+        default: []
+      oic_sync_openstack_extra_args:
+        description: Other options of oic-sync openstack sync.
+        type: str
+        default: ""
+      oic_sync_openstack_timer:
+        description: Enable oic-sync-openstack.timer (default when a cloud and images are set).
+        type: bool

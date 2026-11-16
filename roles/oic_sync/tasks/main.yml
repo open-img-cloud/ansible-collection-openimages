@@ -1,0 +1,133 @@
+---
+- name: Check the platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['architecture'] == 'x86_64'
+      - >-
+        (ansible_facts['os_family'] == 'Debian' and ansible_facts['distribution_major_version'] in ['12', '13'])
+        or (ansible_facts['os_family'] == 'RedHat' and ansible_facts['distribution_major_version'] in ['9', '10'])
+    fail_msg: >-
+      oic-sync packages exist for x86_64 Debian 12/13 (Proxmox VE 8/9) and EL9/EL10, not for
+      {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+      {{ ansible_facts['architecture'] }}: use pipx install oic-sync there.
+    quiet: true
+
+- name: Check the image lists
+  ansible.builtin.assert:
+    that:
+      - (oic_sync_proxmox_images + oic_sync_openstack_images) | select('search', '\s') | list | length == 0
+    fail_msg: Image ids cannot contain spaces.
+    quiet: true
+
+- name: Name the package
+  ansible.builtin.set_fact:
+    oic_sync_package: >-
+      {{ 'oic-sync_%s-1.deb%s_amd64.deb' % (oic_sync_version, ansible_facts['distribution_major_version'])
+         if ansible_facts['os_family'] == 'Debian'
+         else 'oic-sync-%s-1.el%s.x86_64.rpm' % (oic_sync_version, ansible_facts['distribution_major_version']) }}
+    oic_sync_options_file: "{{ '/etc/default/oic-sync' if ansible_facts['os_family'] == 'Debian' else '/etc/sysconfig/oic-sync' }}"
+    oic_sync_proxmox_args: >-
+      {{ (oic_sync_proxmox_images | map('regex_replace', '^', '--image ') | list
+          + ([oic_sync_proxmox_extra_args] if oic_sync_proxmox_extra_args else [])) | join(' ') }}
+    oic_sync_openstack_args: >-
+      {{ (oic_sync_openstack_images | map('regex_replace', '^', '--image ') | list
+          + ([oic_sync_openstack_extra_args] if oic_sync_openstack_extra_args else [])) | join(' ') }}
+
+- name: Create the download directory
+  ansible.builtin.file:
+    path: "{{ oic_sync_download_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# get_url reads the expected digest for this file name in the release SHA256SUMS.
+- name: Download the package (sha256 checked)
+  ansible.builtin.get_url:
+    url: "{{ oic_sync_release_url }}/{{ oic_sync_package }}"
+    dest: "{{ oic_sync_download_dir }}/{{ oic_sync_package }}"
+    checksum: "sha256:{{ oic_sync_release_url }}/SHA256SUMS"
+    owner: root
+    group: root
+    mode: "0644"
+    timeout: 60
+
+- name: Look for cosign
+  ansible.builtin.command:
+    argv: ["{{ oic_sync_cosign }}", version]
+  register: oic_sync_cosign_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: oic_sync_verify_signature != 'never'
+
+- name: Require cosign
+  ansible.builtin.assert:
+    that:
+      - oic_sync_cosign_version.rc | default(1) == 0
+    fail_msg: oic_sync_verify_signature is required but {{ oic_sync_cosign }} was not found on the host.
+    quiet: true
+  when: oic_sync_verify_signature == 'required'
+
+- name: Verify the cosign signature of the package
+  when:
+    - oic_sync_verify_signature != 'never'
+    - oic_sync_cosign_version.rc | default(1) == 0
+  block:
+    - name: Download the signature bundle
+      ansible.builtin.get_url:
+        url: "{{ oic_sync_release_url }}/{{ oic_sync_package }}.bundle"
+        dest: "{{ oic_sync_download_dir }}/{{ oic_sync_package }}.bundle"
+        owner: root
+        group: root
+        mode: "0644"
+        timeout: 60
+
+    - name: Run cosign verify-blob
+      ansible.builtin.command:
+        argv:
+          - "{{ oic_sync_cosign }}"
+          - verify-blob
+          - "{{ oic_sync_download_dir }}/{{ oic_sync_package }}"
+          - --bundle
+          - "{{ oic_sync_download_dir }}/{{ oic_sync_package }}.bundle"
+          - --new-bundle-format
+          - --certificate-identity-regexp
+          - "{{ oic_sync_certificate_identity_regexp }}"
+          - --certificate-oidc-issuer
+          - "{{ oic_sync_certificate_oidc_issuer }}"
+      changed_when: false
+
+- name: Install the package (Debian, Proxmox VE)
+  ansible.builtin.apt:
+    deb: "{{ oic_sync_download_dir }}/{{ oic_sync_package }}"
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install the package (EL)
+  ansible.builtin.dnf:
+    name: "{{ oic_sync_download_dir }}/{{ oic_sync_package }}"
+    state: present
+    # The rpm is signed with cosign (checked above when cosign is present), not with GPG.
+    disable_gpg_check: true
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Write the options file
+  ansible.builtin.template:
+    src: oic-sync.j2
+    dest: "{{ oic_sync_options_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable or disable oic-sync-proxmox.timer
+  ansible.builtin.systemd_service:
+    name: oic-sync-proxmox.timer
+    enabled: "{{ oic_sync_proxmox_timer | bool }}"
+    state: "{{ 'started' if oic_sync_proxmox_timer | bool else 'stopped' }}"
+    daemon_reload: true
+
+- name: Enable or disable oic-sync-openstack.timer
+  ansible.builtin.systemd_service:
+    name: oic-sync-openstack.timer
+    enabled: "{{ oic_sync_openstack_timer | bool }}"
+    state: "{{ 'started' if oic_sync_openstack_timer | bool else 'stopped' }}"

@@ -1,0 +1,149 @@
+---
+# Imports one artifact (glance_image_target) under a temporary name; main.yml renames it once
+# every check has passed. On failure, the new image is deleted.
+- name: "Import {{ glance_image_target.key ~ ' ' ~ glance_image_target.version }}"
+  vars:
+    glance_image_method: "{{ glance_image_import_method }}"
+    glance_image_import_name: >-
+      {{ glance_image_target.name }} ({{ glance_image_target.version }}, {{ glance_image_target.sha256[:12] }})
+    glance_image_file: "{{ (glance_image_tmp.path | default('')) ~ '/image.qcow2' }}"
+  block:
+    # First, so that the rescue below never sees the id of a previous loop iteration.
+    - name: Choose an image id
+      ansible.builtin.set_fact:
+        glance_image_new_id: "{{ (glance_image_target.sha256 ~ now(utc=true).isoformat()) | to_uuid }}"
+
+    - name: Refuse an import without signature check
+      ansible.builtin.fail:
+        msg: >-
+          web-download leaves the image data to Glance: the cosign signature cannot be verified
+          here. Use glance_image_import_method=upload, or oic-sync.
+      when:
+        - glance_image_method == 'web-download'
+        - glance_image_verify_signature == 'required'
+
+    - name: Create a download directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: oic-
+        path: "{{ glance_image_download_dir | default(omit, true) }}"
+      register: glance_image_tmp
+      when: glance_image_method == 'upload'
+
+    - name: Download the image (sha256 checked)
+      ansible.builtin.get_url:
+        url: "{{ glance_image_target.url }}"
+        dest: "{{ glance_image_file }}"
+        checksum: "sha256:{{ glance_image_target.sha256 }}"
+        mode: "0600"
+        timeout: 60
+      when: glance_image_method == 'upload'
+
+    - name: Verify the cosign signature
+      when:
+        - glance_image_method == 'upload'
+        - glance_image_cosign_ok | bool
+      block:
+        - name: Download the signature bundle
+          ansible.builtin.get_url:
+            url: "{{ glance_image_target.bundle_url }}"
+            dest: "{{ glance_image_file }}.bundle"
+            mode: "0600"
+            timeout: 60
+
+        - name: Run cosign verify-blob
+          ansible.builtin.command:
+            argv:
+              - "{{ glance_image_cosign }}"
+              - verify-blob
+              - "{{ glance_image_file }}"
+              - --bundle
+              - "{{ glance_image_file }}.bundle"
+              - --new-bundle-format
+              - --certificate-identity-regexp
+              - "{{ glance_image_identity_regexp }}"
+              - --certificate-oidc-issuer
+              - "{{ glance_image_oidc_issuer }}"
+          changed_when: false
+
+    - name: Upload to Glance
+      openstack.cloud.image:
+        cloud: "{{ glance_image_cloud | default(omit, true) }}"
+        region_name: "{{ glance_image_region_name | default(omit, true) }}"
+        id: "{{ glance_image_new_id }}"
+        name: "{{ glance_image_import_name }}"
+        filename: "{{ glance_image_file }}"
+        disk_format: "{{ glance_image_target.format }}"
+        container_format: bare
+        min_disk: "{{ glance_image_target.min_disk | default(omit, true) }}"
+        visibility: "{{ glance_image_visibility }}"
+        tags: "{{ glance_image_tags }}"
+        properties: "{{ glance_image_target.properties }}"
+        wait: true
+        timeout: "{{ glance_image_timeout }}"
+      register: glance_image_uploaded
+      when: glance_image_method == 'upload'
+
+    - name: Import with web-download
+      openstack.cloud.image:
+        cloud: "{{ glance_image_cloud | default(omit, true) }}"
+        region_name: "{{ glance_image_region_name | default(omit, true) }}"
+        id: "{{ glance_image_new_id }}"
+        name: "{{ glance_image_import_name }}"
+        uri: "{{ glance_image_target.url }}"
+        import_method: web-download
+        disk_format: "{{ glance_image_target.format }}"
+        container_format: bare
+        min_disk: "{{ glance_image_target.min_disk | default(omit, true) }}"
+        visibility: "{{ glance_image_visibility }}"
+        tags: "{{ glance_image_tags }}"
+        properties: "{{ glance_image_target.properties }}"
+        wait: true
+        timeout: "{{ glance_image_timeout }}"
+      register: glance_image_imported
+      when: glance_image_method == 'web-download'
+
+    - name: Compare what Glance stored with the index
+      vars:
+        glance_image_result: >-
+          {{ (glance_image_uploaded if glance_image_method == 'upload' else glance_image_imported).image }}
+        glance_image_digests: >-
+          {{ {'sha256': glance_image_target.sha256, 'sha512': glance_image_target.sha512}
+             | dict2items | rejectattr('value', 'none') | items2dict }}
+      ansible.builtin.assert:
+        that:
+          - glance_image_result.status == 'active'
+          - glance_image_target.size is none or glance_image_result.size | int == glance_image_target.size | int
+          - >-
+            (glance_image_result.hash_algo in glance_image_digests
+             and glance_image_result.hash_value | lower == glance_image_digests[glance_image_result.hash_algo])
+            or (glance_image_result.hash_algo not in glance_image_digests
+                and not glance_image_require_glance_hash | bool)
+        fail_msg: >-
+          {{ glance_image_target.key }}: Glance stored {{ glance_image_result.size }} bytes with
+          {{ glance_image_result.hash_algo | default('no', true) }} digest
+          {{ glance_image_result.hash_value | default('', true) }}; the index says
+          {{ glance_image_target.size }} bytes, {{ glance_image_digests }}.
+        quiet: true
+
+  rescue:
+    - name: Remove the incomplete image
+      openstack.cloud.image:
+        cloud: "{{ glance_image_cloud | default(omit, true) }}"
+        region_name: "{{ glance_image_region_name | default(omit, true) }}"
+        id: "{{ glance_image_new_id }}"
+        name: "{{ glance_image_import_name }}"
+        state: absent
+      when: glance_image_new_id is defined
+      failed_when: false
+
+    - name: Report the failure
+      ansible.builtin.fail:
+        msg: "Import of {{ glance_image_target.key }} failed: {{ ansible_failed_result.msg | default('see above') }}"
+
+  always:
+    - name: Remove the download directory
+      ansible.builtin.file:
+        path: "{{ glance_image_tmp.path }}"
+        state: absent
+      when: glance_image_tmp.path is defined

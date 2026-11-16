@@ -1,0 +1,5 @@
+---
+collections:
+  - name: openimages.cloud
+  - name: openstack.cloud
+    version: ">=2.5.0"

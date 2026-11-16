@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# Options of the oic-sync systemd services, see https://github.com/open-img-cloud/oic-sync
+# Values are split on spaces by the service: no quoting inside them.
+
+# Proxmox VE (oic-sync-proxmox.timer)
+OIC_SYNC_PROXMOX_ARGS="{{ oic_sync_proxmox_args }}"
+
+# OpenStack (oic-sync-openstack.timer); credentials in /etc/openstack/clouds.yaml
+OS_CLOUD="{{ oic_sync_openstack_cloud }}"
+OIC_SYNC_OPENSTACK_ARGS="{{ oic_sync_openstack_args }}"

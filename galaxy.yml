@@ -1,0 +1,33 @@
+---
+namespace: openimages
+name: cloud
+version: 0.1.0
+readme: README.md
+authors:
+  - openimages.cloud contributors <security@openimages.cloud>
+description: >-
+  Import the signed, boot-tested cloud images of openimages.cloud into OpenStack Glance, and
+  install oic-sync to keep them in sync on OpenStack or Proxmox VE.
+license:
+  - GPL-3.0-or-later
+tags:
+  - openstack
+  - proxmox
+  - glance
+  - images
+  - cloud
+  - infrastructure
+dependencies:
+  "openstack.cloud": ">=2.5.0"
+repository: https://github.com/open-img-cloud/ansible-collection-openimages
+documentation: https://github.com/open-img-cloud/ansible-collection-openimages#readme
+homepage: https://openimages.cloud
+issues: https://github.com/open-img-cloud/ansible-collection-openimages/issues
+build_ignore:
+  - .git
+  - .github
+  - .gitignore
+  - .ansible-lint
+  - .ansible
+  - "*.tar.gz"
+  - tests/output

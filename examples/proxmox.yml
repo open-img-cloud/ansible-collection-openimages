@@ -1,0 +1,11 @@
+---
+# Install oic-sync on Proxmox VE nodes and keep Debian 13 and Ubuntu 24.04 templates up to date.
+#   ansible-playbook -i inventory examples/proxmox.yml
+- name: Keep openimages.cloud templates on Proxmox VE
+  hosts: proxmox
+  become: true
+  roles:
+    - role: openimages.cloud.oic_sync
+      vars:
+        oic_sync_proxmox_images: [debian-13, ubuntu-24.04]
+        oic_sync_proxmox_extra_args: --vmid-base 9000 --keep 2 --delete

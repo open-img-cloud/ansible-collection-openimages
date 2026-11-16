@@ -1,0 +1,155 @@
+---
+- name: Check the image selection
+  ansible.builtin.assert:
+    that:
+      - glance_image_images | length > 0
+    fail_msg: Set glance_image_images, e.g. [debian-13, ubuntu-24.04].
+    quiet: true
+
+- name: Read the catalog index
+  openimages.cloud.index_info:
+    index_url: "{{ glance_image_index_url }}"
+    images: "{{ glance_image_images }}"
+    variants: "{{ glance_image_variants }}"
+    architecture: "{{ glance_image_architecture }}"
+    properties: "{{ glance_image_properties }}"
+    with_optional_properties: "{{ glance_image_with_optional_properties }}"
+    name_prefix: "{{ glance_image_name_prefix }}"
+    names: "{{ glance_image_names }}"
+  register: glance_image_index
+
+- name: Find the images already in the project
+  openimages.cloud.glance_info:
+    cloud: "{{ glance_image_cloud | default(omit, true) }}"
+    region_name: "{{ glance_image_region_name | default(omit, true) }}"
+    oic_ids: "{{ glance_image_index.targets | map(attribute='image_id') | unique | list }}"
+  register: glance_image_found
+
+- name: Look for cosign
+  ansible.builtin.command:
+    argv: ["{{ glance_image_cosign }}", version]
+  register: glance_image_cosign_version
+  changed_when: false
+  failed_when: false
+  when: glance_image_verify_signature != 'never'
+
+- name: Decide what to import
+  ansible.builtin.set_fact:
+    glance_image_cosign_ok: >-
+      {{ glance_image_verify_signature != 'never'
+         and (glance_image_cosign_version.rc | default(1)) == 0 }}
+    glance_image_identity_regexp: >-
+      {{ glance_image_certificate_identity_regexp
+         or glance_image_index.signing.certificate_identity_regexp | default('') }}
+    glance_image_oidc_issuer: >-
+      {{ glance_image_certificate_oidc_issuer
+         or glance_image_index.signing.certificate_oidc_issuer | default('') }}
+    glance_image_todo: >-
+      {{ glance_image_index.targets
+         | rejectattr('sha256', 'in', glance_image_found.images
+                                     | selectattr('status', 'equalto', 'active')
+                                     | map(attribute='oic_sha256') | list)
+         | list }}
+
+- name: Require cosign
+  ansible.builtin.assert:
+    that:
+      - glance_image_cosign_ok | bool
+      - glance_image_identity_regexp | length > 0
+      - glance_image_oidc_issuer | length > 0
+    fail_msg: >-
+      glance_image_verify_signature is required but {{ glance_image_cosign }} was not found
+      (cosign 2.4 or newer) or the index publishes no signer identity.
+    quiet: true
+  when: glance_image_verify_signature == 'required'
+
+- name: Check that the cloud offers web-download
+  ansible.builtin.assert:
+    that:
+      - "'web-download' in glance_image_found.import_methods"
+    fail_msg: >-
+      This cloud does not offer the web-download import method
+      ({{ glance_image_found.import_methods | join(', ') or 'none' }}): use
+      glance_image_import_method=upload.
+    quiet: true
+  when: glance_image_import_method == 'web-download'
+
+- name: Report the plan
+  ansible.builtin.debug:
+    msg: >-
+      To import: {{ glance_image_todo | map(attribute='key') | join(', ') or 'nothing' }}.
+      Signature verification: {{ 'cosign' if glance_image_cosign_ok | bool else 'not available' }}.
+
+- name: Import the missing versions
+  ansible.builtin.include_tasks: import.yml
+  loop: "{{ glance_image_todo }}"
+  loop_control:
+    loop_var: glance_image_target
+    label: "{{ glance_image_target.key }} {{ glance_image_target.version }}"
+  # Downloads and imports cannot be simulated.
+  when: not ansible_check_mode
+
+- name: Read the project images again
+  openimages.cloud.glance_info:
+    cloud: "{{ glance_image_cloud | default(omit, true) }}"
+    region_name: "{{ glance_image_region_name | default(omit, true) }}"
+    oic_ids: "{{ glance_image_index.targets | map(attribute='image_id') | unique | list }}"
+  register: glance_image_after
+
+- name: Give older versions a versioned name
+  openstack.cloud.image:
+    cloud: "{{ glance_image_cloud | default(omit, true) }}"
+    region_name: "{{ glance_image_region_name | default(omit, true) }}"
+    id: "{{ item.id }}"
+    name: "{{ glance_image_old_target.name }} ({{ item.oic_version }})"
+    visibility: "{{ item.visibility }}"
+  loop: "{{ glance_image_after.images }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    glance_image_old_target: >-
+      {{ glance_image_index.targets
+         | selectattr('image_id', 'equalto', item.oic_id)
+         | selectattr('variant', 'equalto', item.oic_variant)
+         | first | default({}) }}
+  when:
+    - glance_image_retire | bool
+    - glance_image_old_target.sha256 is defined
+    - item.oic_sha256 != glance_image_old_target.sha256
+    - item.name == glance_image_old_target.name
+
+- name: Give the current versions their name
+  openstack.cloud.image:
+    cloud: "{{ glance_image_cloud | default(omit, true) }}"
+    region_name: "{{ glance_image_region_name | default(omit, true) }}"
+    id: "{{ glance_image_current.id }}"
+    name: "{{ item.name }}"
+    visibility: "{{ glance_image_current.visibility }}"
+  loop: "{{ glance_image_index.targets }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    glance_image_current: >-
+      {{ glance_image_after.images
+         | selectattr('oic_sha256', 'equalto', item.sha256)
+         | selectattr('status', 'equalto', 'active')
+         | first | default({}) }}
+  when:
+    - glance_image_current.id is defined
+    - glance_image_current.name != item.name
+
+- name: Index the active images by sha256
+  ansible.builtin.set_fact:
+    glance_image_by_sha256: >-
+      {{ glance_image_after.images
+         | selectattr('status', 'equalto', 'active')
+         | items2dict(key_name='oic_sha256', value_name='id') }}
+
+# Exposed to the play: Glance image ids by artifact key (debian-13, alpine-linux/uefi).
+- name: Collect the image ids
+  ansible.builtin.set_fact:
+    glance_image_ids: >-
+      {{ dict(glance_image_index.targets | map(attribute='key')
+              | zip(glance_image_index.targets | map(attribute='sha256')
+                    | map('extract', glance_image_by_sha256) | list)) }}
+  when: not ansible_check_mode

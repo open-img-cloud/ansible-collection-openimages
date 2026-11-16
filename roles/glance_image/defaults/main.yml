@@ -1,0 +1,39 @@
+---
+# Catalog image ids to import, e.g. [debian-13, ubuntu-24.04] (required).
+glance_image_images: []
+# Variants to keep for multi-variant images, e.g. {alpine-linux: [uefi]}; others get every variant.
+glance_image_variants: {}
+glance_image_architecture: x86_64
+# Catalog index; change it to use a mirror.
+glance_image_index_url: https://images.openimages.cloud/index.json
+
+# OpenStack connection: a clouds.yaml entry name (or an auth dict), and a region.
+glance_image_cloud: ""
+glance_image_region_name: ""
+
+# Image settings.
+glance_image_name_prefix: ""
+glance_image_names: {}
+glance_image_visibility: private
+glance_image_properties: {}
+glance_image_with_optional_properties: false
+glance_image_tags: []
+
+# upload: download here (sha256 checked, signature verified), then upload to Glance.
+# web-download: Glance downloads the image itself (no signature check, see the README).
+glance_image_import_method: upload
+# auto: verify when cosign is installed; required: fail without cosign; never: skip.
+glance_image_verify_signature: auto
+glance_image_cosign: cosign
+# Signer identity and issuer: empty means those published in the index (signing section).
+glance_image_certificate_identity_regexp: ""
+glance_image_certificate_oidc_issuer: ""
+# Fail when Glance reports no sha256/sha512 multihash to compare with the index.
+glance_image_require_glance_hash: true
+
+# Rename older versions "<name> (<version>)" so that only the newest holds the name.
+glance_image_retire: true
+# Directory for downloads (empty: the system temporary directory). Needs up to ~1.3 GB per image.
+glance_image_download_dir: ""
+# Seconds to wait for an upload or an import.
+glance_image_timeout: 3600

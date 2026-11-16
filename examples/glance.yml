@@ -1,0 +1,18 @@
+---
+# Import Debian 13, Ubuntu 24.04 and the UEFI variant of Alpine Linux into a project.
+#   ansible-playbook examples/glance.yml -e glance_image_cloud=mycloud
+- name: Import openimages.cloud images into Glance
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: openimages.cloud.glance_image
+      vars:
+        glance_image_images: [debian-13, ubuntu-24.04, alpine-linux]
+        glance_image_variants:
+          alpine-linux: [uefi]
+        glance_image_tags: [openimages]
+  post_tasks:
+    - name: Show the image ids
+      ansible.builtin.debug:
+        var: glance_image_ids

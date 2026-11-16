@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: ansible-lint
+        run: |
+          pip install ansible-core ansible-lint
+          ansible-lint
+
+      - name: Build
+        run: ansible-galaxy collection build
+
+  sanity-units:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible: ['stable-2.19', 'stable-2.20', 'stable-2.21', 'devel']
+    steps:
+      # ansible-test needs the collection at ansible_collections/<namespace>/<name>.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          persist-credentials: false
+          path: ansible_collections/openimages/cloud
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Install ansible-core and openstack.cloud
+        env:
+          ANSIBLE_REF: ${{ matrix.ansible }}
+        run: |
+          pip install "https://github.com/ansible/ansible/archive/${ANSIBLE_REF}.tar.gz"
+          ansible-galaxy collection install -p "$GITHUB_WORKSPACE" openstack.cloud
+
+      - name: Sanity
+        working-directory: ansible_collections/openimages/cloud
+        run: ansible-test sanity --docker default -v --color
+
+      - name: Units
+        working-directory: ansible_collections/openimages/cloud
+        run: ansible-test units --docker default -v --color
+
+  index:
+    # The real index: catches a format change that would break index_info (network, no cloud).
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          persist-credentials: false
+          path: ansible_collections/openimages/cloud
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Read the live index
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}
+        run: |
+          pip install ansible-core
+          ansible-playbook ansible_collections/openimages/cloud/examples/index.yml

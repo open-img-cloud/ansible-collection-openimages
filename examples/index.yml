@@ -1,0 +1,18 @@
+---
+# What the index offers, without touching any cloud.
+- name: Read the openimages.cloud catalog
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Read the index
+      openimages.cloud.index_info:
+        images: [debian-13, alpine-linux]
+      register: oic
+
+    - name: Show versions and digests
+      ansible.builtin.debug:
+        msg: "{{ item.key }} {{ item.version }} {{ item.sha256 }}"
+      loop: "{{ oic.targets }}"
+      loop_control:
+        label: "{{ item.key }}"

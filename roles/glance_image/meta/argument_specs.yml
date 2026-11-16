@@ -1,0 +1,100 @@
+---
+argument_specs:
+  main:
+    short_description: Import openimages.cloud images into OpenStack Glance
+    description:
+      - Reads the openimages.cloud catalog index, downloads the selected images (sha256 checked,
+        cosign signature verified when cosign is installed) and imports the missing ones into
+        Glance with the Glance properties of the index and the oic_* keys of oic-sync.
+      - The newest version of each image holds the stable name ("Debian 13"); older versions
+        are renamed "Debian 13 (13-20261103-2651)". Nothing is deleted.
+    options:
+      glance_image_images:
+        description: Catalog image ids to import.
+        type: list
+        elements: str
+        required: true
+      glance_image_variants:
+        description: Variants to keep for multi-variant images, by image id.
+        type: dict
+        default: {}
+      glance_image_architecture:
+        description: Artifact architecture.
+        type: str
+        default: x86_64
+      glance_image_index_url:
+        description: Catalog index URL.
+        type: str
+        default: https://images.openimages.cloud/index.json
+      glance_image_cloud:
+        description: clouds.yaml entry name, or an auth dict, as for the openstack.cloud modules. Empty uses OS_* variables.
+        type: raw
+        default: ""
+      glance_image_region_name:
+        description: OpenStack region.
+        type: str
+        default: ""
+      glance_image_name_prefix:
+        description: Prefix added to every image name.
+        type: str
+        default: ""
+      glance_image_names:
+        description: Image names by artifact key (debian-13, alpine-linux/uefi).
+        type: dict
+        default: {}
+      glance_image_visibility:
+        description: Glance visibility of new images.
+        type: str
+        choices: [private, shared, community, public]
+        default: private
+      glance_image_properties:
+        description: Extra or overriding Glance properties (oic_* keys reserved).
+        type: dict
+        default: {}
+      glance_image_with_optional_properties:
+        description: Add hw_rng_model=virtio (flavors must allow hw_rng:allowed=True).
+        type: bool
+        default: false
+      glance_image_tags:
+        description: Glance tags of new images.
+        type: list
+        elements: str
+        default: []
+      glance_image_import_method:
+        description: How the image data reaches Glance.
+        type: str
+        choices: [upload, web-download]
+        default: upload
+      glance_image_verify_signature:
+        description: Cosign signature verification.
+        type: str
+        choices: [auto, required, never]
+        default: auto
+      glance_image_cosign:
+        description: cosign binary (2.4 or newer).
+        type: str
+        default: cosign
+      glance_image_certificate_identity_regexp:
+        description: Expected signer identity (regexp); empty uses the index signing section.
+        type: str
+        default: ""
+      glance_image_certificate_oidc_issuer:
+        description: Expected OIDC issuer; empty uses the index signing section.
+        type: str
+        default: ""
+      glance_image_require_glance_hash:
+        description: Fail when Glance reports no sha256/sha512 multihash.
+        type: bool
+        default: true
+      glance_image_retire:
+        description: Rename older versions so that only the newest holds the name.
+        type: bool
+        default: true
+      glance_image_download_dir:
+        description: Download directory (empty uses the system temporary directory).
+        type: str
+        default: ""
+      glance_image_timeout:
+        description: Seconds to wait for an upload or an import.
+        type: int
+        default: 3600
