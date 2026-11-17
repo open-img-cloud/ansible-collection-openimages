@@ -128,8 +128,7 @@ Nothing is ever deleted, older versions are not hidden (`openstack.cloud.image` 
 `web-download` lets Glance fetch the image itself: nothing goes through the Ansible host, but
 the signature cannot be verified (the role refuses it with `verify_signature: required`) and
 only Glance's multihash (sha512, not covered by the signature) is compared with the index.
-Glance fetches with the default Python User-Agent (`Python-urllib`), which
-images.openimages.cloud currently refuses (HTTP 403): `web-download` fails until that changes.
+The cloud must offer the `web-download` import method.
 
 ## Install oic-sync (Proxmox VE, OpenStack)
 

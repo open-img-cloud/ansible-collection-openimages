@@ -82,7 +82,7 @@ options:
     default: true
   http_agent:
     description:
-      - User-Agent header. The CDN refuses the default one of Python (C(Python-urllib)).
+      - User-Agent header sent to the catalog.
     type: str
     default: ansible-httpget
 attributes:
