@@ -123,6 +123,7 @@ Nothing is ever deleted, older versions are not hidden (`openstack.cloud.image` 
 | `glance_image_retire` | `true` | rename older versions so that only the newest holds the name |
 | `glance_image_download_dir` | `""` | download directory (system temporary directory); about 1.3 GB at most per image |
 | `glance_image_index_url` | public index | another index, e.g. a mirror |
+| `glance_image_eol` | `warn` | images past their upstream end of life ([endoflife.date](https://endoflife.date) dates of the index): `warn` and import, `skip`, or `fail`; within six months, a warning only |
 | `glance_image_timeout` | `3600` | seconds to wait for an upload or an import |
 
 `web-download` lets Glance fetch the image itself: nothing goes through the Ansible host, but
@@ -153,7 +154,7 @@ images are set (both timers run daily).
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `oic_sync_version` | `0.1.1` | oic-sync release |
+| `oic_sync_version` | `0.2.2` | oic-sync release |
 | `oic_sync_proxmox_images` | `[]` | images to keep as Proxmox VE templates |
 | `oic_sync_proxmox_extra_args` | `""` | other `oic-sync proxmox sync` options |
 | `oic_sync_openstack_cloud` | `""` | clouds.yaml entry (`OS_CLOUD`) |

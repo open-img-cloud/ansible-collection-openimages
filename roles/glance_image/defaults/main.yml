@@ -6,6 +6,9 @@ glance_image_variants: {}
 glance_image_architecture: x86_64
 # Catalog index; change it to use a mirror.
 glance_image_index_url: https://images.openimages.cloud/index.json
+# Images past their upstream end of life (endoflife.date dates of the index): warn and import
+# them, skip them, or fail.
+glance_image_eol: warn
 
 # OpenStack connection: a clouds.yaml entry name (or an auth dict), and a region.
 glance_image_cloud: ""

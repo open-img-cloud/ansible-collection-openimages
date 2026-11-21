@@ -16,6 +16,7 @@
     with_optional_properties: "{{ glance_image_with_optional_properties }}"
     name_prefix: "{{ glance_image_name_prefix }}"
     names: "{{ glance_image_names }}"
+    eol: "{{ glance_image_eol }}"
   register: glance_image_index
 
 - name: Find the images already in the project

@@ -69,6 +69,62 @@ def glance_properties(image, artifact, extra_properties=None, with_optional=Fals
     return dict((str(k), str(v)) for k, v in props.items())
 
 
+EOL_POLICIES = ("warn", "skip", "fail")
+
+
+def support_of(image):
+    """Upstream support of the image's release (endoflife.date, published in the index), or None.
+
+    Informational: a malformed block is ignored rather than failing the selection.
+    """
+    raw = image.get("support")
+    if not isinstance(raw, dict) or not isinstance(raw.get("release"), str):
+        return None
+    until = raw.get("security_until")
+    is_eol = raw.get("is_eol") is True
+    return {
+        "release": raw["release"],
+        "security_until": until if isinstance(until, str) else None,
+        "is_eol": is_eol,
+        "eol_soon": raw.get("eol_soon") is True and not is_eol,
+        "source": raw.get("source") if isinstance(raw.get("source"), str) else None,
+    }
+
+
+def eol_message(image_id, support):
+    when = support["security_until"] or "an unknown date"
+    verb = "reached its upstream end of life on" if support["is_eol"] else "reaches its upstream end of life on"
+    return "%s: release %s %s %s" % (image_id, support["release"], verb, when)
+
+
+def apply_eol_policy(targets, policy="warn"):
+    """(targets, warnings): drop (skip) or refuse (fail) targets past their end of life."""
+    if policy not in EOL_POLICIES:
+        raise OicIndexError("eol must be one of %s" % ", ".join(EOL_POLICIES))
+    warnings = []
+    eol = []
+    seen = set()
+    for t in targets:
+        s = t.get("support")
+        if not s or not (s["is_eol"] or s["eol_soon"]) or t["image_id"] in seen:
+            continue
+        seen.add(t["image_id"])
+        if s["is_eol"]:
+            eol.append(t["image_id"])
+            action = {"warn": "imported anyway", "skip": "skipped", "fail": "refused"}[policy]
+        else:
+            action = "plan the move to a newer release"
+        warnings.append("%s (%s)" % (eol_message(t["image_id"], s), action))
+    if eol and policy == "fail":
+        raise OicIndexError(
+            "image(s) past their upstream end of life: %s (eol=warn to import them anyway, "
+            "eol=skip to leave them out)" % ", ".join(eol)
+        )
+    if policy == "skip":
+        targets = [t for t in targets if t["image_id"] not in eol]
+    return targets, warnings
+
+
 def select_targets(
     index,
     images=None,
@@ -136,6 +192,7 @@ def select_targets(
                     "firmware": artifact.get("firmware"),
                     "arch": artifact.get("arch"),
                     "login_user": image.get("login_user"),
+                    "support": support_of(image),
                     "properties": glance_properties(image, artifact, extra_properties, with_optional_properties),
                 }
             )
