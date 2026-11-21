@@ -12,6 +12,10 @@ oic_sync_cosign: cosign
 oic_sync_certificate_identity_regexp: ^https://github\.com/open-img-cloud/oic-sync/\.github/workflows/packages\.yml@refs/tags/v
 oic_sync_certificate_oidc_issuer: https://token.actions.githubusercontent.com
 
+# Write the options file and enable or disable the timers. false: install the package only
+# (used by the oic_mirror role, so it leaves an existing Proxmox VE or OpenStack setup alone).
+oic_sync_configure: true
+
 # Proxmox VE (runs as root on the node): images to keep as VM templates, and other options,
 # e.g. "--vmid-base 9000 --keep 2 --delete". The timer is enabled when images are listed.
 oic_sync_proxmox_images: []

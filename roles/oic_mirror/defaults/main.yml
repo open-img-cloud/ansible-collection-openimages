@@ -1,0 +1,45 @@
+---
+# Where the mirror is written. A plain string: a local directory today, served by a web server.
+oic_mirror_dest: /srv/oic-mirror
+# oic_mirror_base_url (required, no default): URL the mirror is served at, written into the
+# mirror index.json, e.g. https://mirror.example.net/oic
+
+# What to mirror: image ids (empty: every image except the service ones), variants (empty: all),
+# versions per image, the latest included, and whether versions beyond oic_mirror_keep are deleted.
+oic_mirror_images: []
+oic_mirror_variants: []
+oic_mirror_include_service_images: false
+oic_mirror_keep: 1
+oic_mirror_prune: false
+# End of life policy of oic-sync (warn, skip, fail); empty keeps the oic-sync default (warn).
+oic_mirror_eol: ""
+# Another index to mirror from (empty: https://images.openimages.cloud/index.json).
+oic_mirror_index_url: ""
+# Other options of oic-sync mirror, appended as is.
+oic_mirror_extra_args: ""
+
+# System user that owns the mirror and runs the service.
+oic_mirror_user: oic-mirror
+oic_mirror_group: oic-mirror
+
+# Refresh: systemd timer, daily with a random delay so mirrors do not all start at once.
+oic_mirror_timer: true
+oic_mirror_on_calendar: daily
+oic_mirror_randomized_delay: 1h
+# Run the mirror once at the end of the play (the first run downloads every image: it can be long).
+oic_mirror_run_now: true
+
+# Install oic-sync with the openimages.cloud.oic_sync role (package of the GitHub release, x86_64
+# Debian 12/13 or EL9/EL10). false: oic-sync is already installed at oic_mirror_oic_sync_bin.
+oic_mirror_install: true
+oic_mirror_oic_sync_bin: /usr/bin/oic-sync
+
+# nginx server block serving the mirror, in /etc/nginx/conf.d/oic-mirror.conf. TLS is left to
+# you (add the certificate lines, or terminate it in front). nginx is only installed when
+# oic_mirror_nginx_install is true.
+oic_mirror_nginx: false
+oic_mirror_nginx_install: false
+oic_mirror_nginx_listen: "80"
+oic_mirror_nginx_server_name: "{{ oic_mirror_base_url | urlsplit('hostname') }}"
+oic_mirror_nginx_location: "{{ (oic_mirror_base_url | urlsplit('path') | regex_replace('/+$', '')) ~ '/' }}"
+oic_mirror_nginx_conf: /etc/nginx/conf.d/oic-mirror.conf

@@ -1,0 +1,38 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Mirror the openimages.cloud catalog to {{ oic_mirror_dest }}
+Documentation=https://github.com/open-img-cloud/oic-sync#mirror
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User={{ oic_mirror_user }}
+Group={{ oic_mirror_group }}
+# Sigstore trust root cache.
+CacheDirectory=oic-mirror
+Environment=HOME=/var/cache/oic-mirror
+ExecStart={{ oic_mirror_oic_sync_bin }} {{ oic_mirror_args }}
+# The mirror only needs outbound HTTP(S) and its own directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+{% if oic_mirror_local %}
+ReadWritePaths={{ oic_mirror_dest }}
+{% endif %}
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+UMask=0022

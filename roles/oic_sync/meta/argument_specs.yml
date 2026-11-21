@@ -36,6 +36,10 @@ argument_specs:
         description: Expected OIDC issuer.
         type: str
         default: https://token.actions.githubusercontent.com
+      oic_sync_configure:
+        description: Write the options file and manage the timers (false, install the package only).
+        type: bool
+        default: true
       oic_sync_proxmox_images:
         description: Images to keep as Proxmox VE templates.
         type: list

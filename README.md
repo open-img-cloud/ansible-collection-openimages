@@ -27,6 +27,7 @@ The `openimages.cloud` collection brings the signed, boot-tested cloud images of
 |---|---|
 | role `openimages.cloud.glance_image` | Imports images into OpenStack Glance: sha256 checked, cosign signature verified when cosign is installed, Glance properties of the index, stable names |
 | role `openimages.cloud.oic_sync` | Installs [oic-sync](https://github.com/open-img-cloud/oic-sync) from its signed packages and enables its daily timer, on a Proxmox VE node or any Debian/EL host for OpenStack |
+| role `openimages.cloud.oic_mirror` | Runs an internal mirror of the catalog with `oic-sync mirror`: signed images copied to a local directory, refreshed daily, optionally served by nginx |
 | module `openimages.cloud.index_info` | Reads the catalog index (`oic-index/v1`) and returns the selected artifacts: URL, digests, names, Glance properties |
 | module `openimages.cloud.glance_info` | Finds the openimages.cloud images of the current project in Glance (`oic_id` property, hidden images included) |
 
@@ -40,6 +41,8 @@ checks were run locally; the `glance_image` role has not been run against a real
 - **OpenStack, images that follow the catalog every day**: oic-sync too (the `oic_sync` role
   on any Debian 12/13 or EL9/EL10 host, or its container image). It also hides retired
   versions and deletes the ones no server or volume uses.
+- **No access to the CDN from the clouds** (internal or air-gapped): the `oic_mirror` role on
+  a host that can reach it, then point oic-sync, Glance and Proxmox VE at the mirror.
 - **OpenStack, images created as part of a playbook** (a tenant bootstrap, a lab, CI): the
   `glance_image` role. It imports what is missing and renames older versions, nothing more.
 
@@ -166,6 +169,58 @@ images are set (both timers run daily).
 Before the first Proxmox VE run, enable the `import` content type on the download storage once
 (`pvesm set local --content iso,vztmpl,backup,import`). For OpenStack, the service runs as a
 dynamic user: `/etc/openstack/clouds.yaml` must be readable by it.
+
+## Run an internal mirror
+
+```yaml
+- name: Mirror openimages.cloud for the internal clouds
+  hosts: mirror
+  become: true
+  roles:
+    - role: openimages.cloud.oic_mirror
+      vars:
+        oic_mirror_base_url: http://mirror.example.net/oic
+        oic_mirror_images: [debian-13, ubuntu-24.04, rocky-linux-10]
+        oic_mirror_keep: 2
+        oic_mirror_prune: true
+        oic_mirror_nginx: true
+        oic_mirror_nginx_install: true
+```
+
+The role installs oic-sync with the `oic_sync` role (package only: an existing Proxmox VE or
+OpenStack setup on the host is left alone), creates the `oic-mirror` system user and
+`/srv/oic-mirror`, and writes `oic-sync-mirror.service` and its daily timer. The service runs
+`oic-sync mirror` as that user, with the filesystem read-only except the mirror directory. Each
+run verifies the cosign signature and the digests of every image before it appears in the
+mirror, and only downloads what changed (see
+[Mirror](https://github.com/open-img-cloud/oic-sync#mirror) in the oic-sync README). The role
+runs the mirror once at the end of the play: the first run downloads every selected image.
+
+Then, on the clients: `OIC_INDEX_URL=http://mirror.example.net/oic/index.json`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `oic_mirror_base_url` | required | URL the mirror is served at, written into its `index.json` |
+| `oic_mirror_dest` | `/srv/oic-mirror` | mirror directory |
+| `oic_mirror_images` | `[]` | images to mirror (empty: all except the service images) |
+| `oic_mirror_variants` | `[]` | variants to mirror (empty: all) |
+| `oic_mirror_include_service_images` | `false` | also the Octavia, Manila and Trove images |
+| `oic_mirror_keep` | `1` | versions per image, the latest included |
+| `oic_mirror_prune` | `false` | delete versions beyond `oic_mirror_keep` |
+| `oic_mirror_eol` | `""` | end of life policy: `warn`, `skip` or `fail` (empty: oic-sync default, `warn`) |
+| `oic_mirror_index_url`, `oic_mirror_extra_args` | `""` | another index, other `oic-sync mirror` options |
+| `oic_mirror_user`, `oic_mirror_group` | `oic-mirror` | owner of the mirror, user of the service |
+| `oic_mirror_timer`, `oic_mirror_on_calendar`, `oic_mirror_randomized_delay` | `true`, `daily`, `1h` | refresh timer |
+| `oic_mirror_run_now` | `true` | run the mirror once at the end of the play |
+| `oic_mirror_install` | `true` | install oic-sync (`false`: already at `oic_mirror_oic_sync_bin`, `/usr/bin/oic-sync`) |
+| `oic_mirror_nginx` | `false` | write `/etc/nginx/conf.d/oic-mirror.conf`, serving the directory at the path of the base URL |
+| `oic_mirror_nginx_install` | `false` | also install and start nginx |
+| `oic_mirror_nginx_listen`, `oic_mirror_nginx_server_name`, `oic_mirror_nginx_location` | `80`, host and path of the base URL | server block |
+
+The nginx server block listens on plain HTTP: add TLS yourself or terminate it in front.
+Integrity does not depend on it (clients check the signed digests), but HTTPS stops an attacker
+on the path from serving an older signed version. `.part` downloads and the lock file are
+never served.
 
 ## Modules
 

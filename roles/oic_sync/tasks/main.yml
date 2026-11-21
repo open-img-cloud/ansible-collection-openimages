@@ -111,23 +111,26 @@
     disable_gpg_check: true
   when: ansible_facts['os_family'] == 'RedHat'
 
-- name: Write the options file
-  ansible.builtin.template:
-    src: oic-sync.j2
-    dest: "{{ oic_sync_options_file }}"
-    owner: root
-    group: root
-    mode: "0644"
+- name: Configure oic-sync
+  when: oic_sync_configure
+  block:
+    - name: Write the options file
+      ansible.builtin.template:
+        src: oic-sync.j2
+        dest: "{{ oic_sync_options_file }}"
+        owner: root
+        group: root
+        mode: "0644"
 
-- name: Enable or disable oic-sync-proxmox.timer
-  ansible.builtin.systemd_service:
-    name: oic-sync-proxmox.timer
-    enabled: "{{ oic_sync_proxmox_timer | bool }}"
-    state: "{{ 'started' if oic_sync_proxmox_timer | bool else 'stopped' }}"
-    daemon_reload: true
+    - name: Enable or disable oic-sync-proxmox.timer
+      ansible.builtin.systemd_service:
+        name: oic-sync-proxmox.timer
+        enabled: "{{ oic_sync_proxmox_timer | bool }}"
+        state: "{{ 'started' if oic_sync_proxmox_timer | bool else 'stopped' }}"
+        daemon_reload: true
 
-- name: Enable or disable oic-sync-openstack.timer
-  ansible.builtin.systemd_service:
-    name: oic-sync-openstack.timer
-    enabled: "{{ oic_sync_openstack_timer | bool }}"
-    state: "{{ 'started' if oic_sync_openstack_timer | bool else 'stopped' }}"
+    - name: Enable or disable oic-sync-openstack.timer
+      ansible.builtin.systemd_service:
+        name: oic-sync-openstack.timer
+        enabled: "{{ oic_sync_openstack_timer | bool }}"
+        state: "{{ 'started' if oic_sync_openstack_timer | bool else 'stopped' }}"

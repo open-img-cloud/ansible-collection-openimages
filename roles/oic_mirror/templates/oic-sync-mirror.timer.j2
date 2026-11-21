@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Refresh the openimages.cloud mirror ({{ oic_mirror_on_calendar }})
+
+[Timer]
+OnCalendar={{ oic_mirror_on_calendar }}
+RandomizedDelaySec={{ oic_mirror_randomized_delay }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

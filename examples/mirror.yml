@@ -1,0 +1,16 @@
+---
+# Run an internal mirror of openimages.cloud, served by nginx at http://mirror.example.net/oic/.
+#   ansible-playbook -i inventory examples/mirror.yml
+# Clients then use OIC_INDEX_URL=http://mirror.example.net/oic/index.json
+- name: Mirror openimages.cloud for the internal clouds
+  hosts: mirror
+  become: true
+  roles:
+    - role: openimages.cloud.oic_mirror
+      vars:
+        oic_mirror_base_url: http://mirror.example.net/oic
+        oic_mirror_images: [debian-13, ubuntu-24.04, rocky-linux-10]
+        oic_mirror_keep: 2
+        oic_mirror_prune: true
+        oic_mirror_nginx: true
+        oic_mirror_nginx_install: true

@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  author: openimages.cloud contributors
+  description: Run an internal mirror of the openimages.cloud catalog with oic-sync mirror
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions: [bookworm, trixie]
+    - name: EL
+      versions: ["9", "10"]
+  galaxy_tags: [mirror, openstack, proxmox, images]
+dependencies: []
