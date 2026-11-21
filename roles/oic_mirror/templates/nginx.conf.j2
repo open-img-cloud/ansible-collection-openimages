@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+# openimages.cloud mirror, written by oic-sync mirror (openimages.cloud.oic_mirror role).
+server {
+    listen {{ oic_mirror_nginx_listen }};
+    server_name {{ oic_mirror_nginx_server_name }};
+    # TLS: add listen 443 ssl and the certificate lines, or terminate it in front.
+
+    # .part downloads and the lock file are never served.
+    location ~ /\. { deny all; }
+
+    location {{ oic_mirror_nginx_location }} {
+        alias {{ oic_mirror_dest | regex_replace('/+$', '') }}/;
+    }
+}

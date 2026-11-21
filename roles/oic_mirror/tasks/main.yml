@@ -1,0 +1,163 @@
+---
+- name: Check the variables
+  ansible.builtin.assert:
+    that:
+      - oic_mirror_base_url is match('^https?://[^\s/]+')
+      - oic_mirror_base_url is not search('\s')
+      - oic_mirror_dest | length > 0
+      - oic_mirror_dest is not search('\s')
+      - (oic_mirror_images + oic_mirror_variants) | select('search', '\s') | list | length == 0
+      - oic_mirror_keep | int >= 1
+      - oic_mirror_eol in ['', 'warn', 'skip', 'fail']
+      - oic_mirror_staging_dir is match('^/') and oic_mirror_staging_dir is not search('\s')
+      - oic_mirror_s3_endpoint_url is not search('\s')
+      - oic_mirror_s3_environment.keys() | reject('match', '^[A-Za-z_][A-Za-z0-9_]*$') | list | length == 0
+      - not (oic_mirror_nginx and oic_mirror_remote)
+    fail_msg: >-
+      oic_mirror_base_url must be an http(s) URL, oic_mirror_dest a path or a URL, image ids and
+      variants without spaces, oic_mirror_keep 1 or more, oic_mirror_eol warn, skip or fail,
+      oic_mirror_staging_dir an absolute path, oic_mirror_s3_environment keys variable names, and
+      oic_mirror_nginx only serves a local directory.
+    quiet: true
+  vars:
+    oic_mirror_remote: "{{ oic_mirror_dest is match('^[a-z0-9]+://') }}"
+
+- name: Build the command line
+  ansible.builtin.set_fact:
+    # A destination given as a URL (e.g. s3://bucket/prefix) has no local directory.
+    oic_mirror_local: "{{ oic_mirror_dest is not match('^[a-z0-9]+://') }}"
+    oic_mirror_args: >-
+      {{ (['mirror', '--dest', oic_mirror_dest, '--base-url', oic_mirror_base_url,
+           '--keep', oic_mirror_keep | string]
+          + (oic_mirror_images | map('regex_replace', '^', '--image ') | list)
+          + (oic_mirror_variants | map('regex_replace', '^', '--variant ') | list)
+          + (['--include-service-images'] if oic_mirror_include_service_images else [])
+          + (['--prune'] if oic_mirror_prune else [])
+          + (['--eol', oic_mirror_eol] if oic_mirror_eol else [])
+          + (['--index-url', oic_mirror_index_url] if oic_mirror_index_url else [])
+          + (['--staging-dir', oic_mirror_staging_dir]
+             if oic_mirror_dest is match('^[a-z0-9]+://') else [])
+          + (['--s3-endpoint-url', oic_mirror_s3_endpoint_url] if oic_mirror_s3_endpoint_url else [])
+          + ([oic_mirror_extra_args] if oic_mirror_extra_args else [])) | join(' ') }}
+
+- name: Install oic-sync
+  ansible.builtin.include_role:
+    name: openimages.cloud.oic_sync
+  vars:
+    # Package only: the options file and the Proxmox VE / OpenStack timers are left as they are.
+    oic_sync_configure: false
+  when: oic_mirror_install
+
+- name: Create the group
+  ansible.builtin.group:
+    name: "{{ oic_mirror_group }}"
+    system: true
+
+- name: Create the user
+  ansible.builtin.user:
+    name: "{{ oic_mirror_user }}"
+    group: "{{ oic_mirror_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ oic_mirror_dest if oic_mirror_local else '/nonexistent' }}"
+    create_home: false
+
+# Readable by the web server; written only by the service user.
+- name: Create the mirror directory
+  ansible.builtin.file:
+    path: "{{ oic_mirror_dest }}"
+    state: directory
+    owner: "{{ oic_mirror_user }}"
+    group: "{{ oic_mirror_group }}"
+    mode: "0755"
+  when: oic_mirror_local
+
+# Outside the service cache directory, the staging directory needs its own write access.
+- name: Create the staging directory
+  ansible.builtin.file:
+    path: "{{ oic_mirror_staging_dir }}"
+    state: directory
+    owner: "{{ oic_mirror_user }}"
+    group: "{{ oic_mirror_group }}"
+    mode: "0750"
+  when:
+    - not oic_mirror_local
+    - oic_mirror_staging_dir | regex_replace('/+$', '') != '/var/cache/oic-mirror'
+
+- name: Create the directory of the environment file
+  ansible.builtin.file:
+    path: "{{ oic_mirror_env_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: oic_mirror_s3_environment | length > 0
+
+- name: Write the environment file (S3 credentials)
+  ansible.builtin.template:
+    src: mirror.env.j2
+    dest: "{{ oic_mirror_env_file }}"
+    owner: root
+    group: "{{ oic_mirror_group }}"
+    mode: "0640"
+  no_log: true
+  when: oic_mirror_s3_environment | length > 0
+
+- name: Remove the environment file
+  ansible.builtin.file:
+    path: "{{ oic_mirror_env_file }}"
+    state: absent
+  when: oic_mirror_s3_environment | length == 0
+
+- name: Write the service and the timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - oic-sync-mirror.service
+    - oic-sync-mirror.timer
+  register: oic_mirror_units
+
+- name: Enable or disable oic-sync-mirror.timer
+  ansible.builtin.systemd_service:
+    name: oic-sync-mirror.timer
+    enabled: "{{ oic_mirror_timer | bool }}"
+    state: "{{ 'started' if oic_mirror_timer | bool else 'stopped' }}"
+    daemon_reload: "{{ oic_mirror_units is changed }}"
+
+- name: Serve the mirror with nginx
+  when: oic_mirror_nginx
+  block:
+    - name: Install nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+      when: oic_mirror_nginx_install
+
+    - name: Write the nginx server block
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: "{{ oic_mirror_nginx_conf }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Start nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        enabled: true
+        state: started
+      when: oic_mirror_nginx_install
+
+# A oneshot service: systemd returns when the run is over (exit 1 when an image failed).
+- name: Run the mirror once
+  ansible.builtin.systemd_service:
+    name: oic-sync-mirror.service
+    state: started
+    daemon_reload: "{{ oic_mirror_units is changed }}"
+  when: oic_mirror_run_now
+  changed_when: true

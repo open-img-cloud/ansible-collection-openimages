@@ -12,7 +12,7 @@ argument_specs:
       oic_sync_version:
         description: oic-sync version (a release with packages).
         type: str
-        default: "0.2.2"
+        default: "0.3.0"
       oic_sync_release_url:
         description: Base URL of the release assets.
         type: str
@@ -36,6 +36,10 @@ argument_specs:
         description: Expected OIDC issuer.
         type: str
         default: https://token.actions.githubusercontent.com
+      oic_sync_configure:
+        description: Write the options file and manage the timers (false, install the package only).
+        type: bool
+        default: true
       oic_sync_proxmox_images:
         description: Images to keep as Proxmox VE templates.
         type: list

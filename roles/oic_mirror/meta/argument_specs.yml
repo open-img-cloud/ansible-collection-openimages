@@ -1,0 +1,128 @@
+---
+argument_specs:
+  main:
+    short_description: Run an internal mirror of the openimages.cloud catalog
+    description:
+      - Installs oic-sync (openimages.cloud.oic_sync role, package only), creates a system user
+        and the mirror directory, and runs oic-sync mirror from a hardened systemd service on a
+        daily timer. Optionally writes an nginx server block serving the directory.
+      - Every run verifies the cosign signature and the digests of each image before it is
+        published in the mirror, see the Mirror section of the oic-sync README.
+    options:
+      oic_mirror_dest:
+        description:
+          - Mirror destination, a local directory or an S3 bucket (s3://bucket/prefix).
+          - An S3 destination needs oic-sync 0.3.0 or newer with the s3 extra (included in the packages).
+        type: str
+        default: /srv/oic-mirror
+      oic_mirror_base_url:
+        description: URL the mirror is served at, written into the mirror index.json.
+        type: str
+        required: true
+      oic_mirror_images:
+        description: Image ids to mirror (empty, every image except the service ones).
+        type: list
+        elements: str
+        default: []
+      oic_mirror_variants:
+        description: Variants to mirror (empty, all).
+        type: list
+        elements: str
+        default: []
+      oic_mirror_include_service_images:
+        description: Also mirror the service images (Octavia, Manila, Trove) when no image is listed.
+        type: bool
+        default: false
+      oic_mirror_keep:
+        description: Versions per image, the latest included.
+        type: int
+        default: 1
+      oic_mirror_prune:
+        description: Delete mirrored versions beyond oic_mirror_keep.
+        type: bool
+        default: false
+      oic_mirror_eol:
+        description: End of life policy (empty keeps the oic-sync default, warn).
+        type: str
+        choices: ["", warn, skip, fail]
+        default: ""
+      oic_mirror_index_url:
+        description: Index to mirror from (empty, the openimages.cloud index).
+        type: str
+        default: ""
+      oic_mirror_staging_dir:
+        description: Staging directory of an S3 mirror (download and verification before upload).
+        type: str
+        default: /var/cache/oic-mirror
+      oic_mirror_s3_endpoint_url:
+        description: Endpoint of an S3-compatible storage (--s3-endpoint-url).
+        type: str
+        default: ""
+      oic_mirror_s3_environment:
+        description:
+          - Environment of the service for the S3 client, written to oic_mirror_env_file.
+          - e.g. AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_ENDPOINT_URL.
+        type: dict
+        default: {}
+      oic_mirror_env_file:
+        description: Environment file of the service (root, group of the service user, 0640).
+        type: str
+        default: /etc/oic-sync/mirror.env
+      oic_mirror_extra_args:
+        description: Other options of oic-sync mirror, appended as is.
+        type: str
+        default: ""
+      oic_mirror_user:
+        description: System user that owns the mirror and runs the service.
+        type: str
+        default: oic-mirror
+      oic_mirror_group:
+        description: Group of that user.
+        type: str
+        default: oic-mirror
+      oic_mirror_timer:
+        description: Enable oic-sync-mirror.timer.
+        type: bool
+        default: true
+      oic_mirror_on_calendar:
+        description: OnCalendar of the timer.
+        type: str
+        default: daily
+      oic_mirror_randomized_delay:
+        description: RandomizedDelaySec of the timer.
+        type: str
+        default: 1h
+      oic_mirror_run_now:
+        description: Run the mirror once at the end of the play (the first run downloads every image).
+        type: bool
+        default: true
+      oic_mirror_install:
+        description: Install oic-sync with the openimages.cloud.oic_sync role (x86_64 Debian 12/13, EL9/EL10).
+        type: bool
+        default: true
+      oic_mirror_oic_sync_bin:
+        description: oic-sync executable run by the service.
+        type: str
+        default: /usr/bin/oic-sync
+      oic_mirror_nginx:
+        description: Write an nginx server block serving the mirror directory.
+        type: bool
+        default: false
+      oic_mirror_nginx_install:
+        description: Also install and start nginx.
+        type: bool
+        default: false
+      oic_mirror_nginx_listen:
+        description: listen directive of the server block.
+        type: str
+        default: "80"
+      oic_mirror_nginx_server_name:
+        description: server_name (default, the host of oic_mirror_base_url).
+        type: str
+      oic_mirror_nginx_location:
+        description: Location the mirror is served at (default, the path of oic_mirror_base_url).
+        type: str
+      oic_mirror_nginx_conf:
+        description: Path of the server block.
+        type: str
+        default: /etc/nginx/conf.d/oic-mirror.conf
