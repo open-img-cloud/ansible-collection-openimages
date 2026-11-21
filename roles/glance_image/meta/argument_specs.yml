@@ -27,7 +27,9 @@ argument_specs:
         type: str
         default: https://images.openimages.cloud/index.json
       glance_image_eol:
-        description: Images past their upstream end of life (endoflife.date dates of the index) are imported with a warning (warn), left out (skip) or make the role fail (fail).
+        description:
+          - Images past their upstream end of life (endoflife.date dates of the index).
+          - warn imports them with a warning, skip leaves them out, fail makes the role fail.
         type: str
         choices: [warn, skip, fail]
         default: warn

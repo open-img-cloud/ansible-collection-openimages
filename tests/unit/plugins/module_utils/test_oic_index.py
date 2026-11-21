@@ -133,7 +133,7 @@ def test_eol_warn_keeps_the_image():
 
 
 def test_eol_skip_leaves_it_out():
-    targets, _ = apply_eol_policy(select_targets(_eol_index()), "skip")
+    targets = apply_eol_policy(select_targets(_eol_index()), "skip")[0]
     assert "debian-13" not in [t["image_id"] for t in targets]
 
 
