@@ -26,6 +26,13 @@ argument_specs:
         description: Catalog index URL.
         type: str
         default: https://images.openimages.cloud/index.json
+      glance_image_eol:
+        description:
+          - Images past their upstream end of life (endoflife.date dates of the index).
+          - warn imports them with a warning, skip leaves them out, fail makes the role fail.
+        type: str
+        choices: [warn, skip, fail]
+        default: warn
       glance_image_cloud:
         description: clouds.yaml entry name, or an auth dict, as for the openstack.cloud modules. Empty uses OS_* variables.
         type: raw

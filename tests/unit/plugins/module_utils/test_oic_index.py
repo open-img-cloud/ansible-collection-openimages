@@ -14,6 +14,7 @@ import pytest
 
 from ansible_collections.openimages.cloud.plugins.module_utils.oic_index import (
     OicIndexError,
+    apply_eol_policy,
     min_disk_gib,
     select_targets,
 )
@@ -103,3 +104,53 @@ def test_min_disk():
     assert min_disk_gib(None) is None
     assert min_disk_gib(2 ** 30) == 1
     assert min_disk_gib(2 ** 30 + 1) == 2
+
+
+def _eol_index(is_eol=True, eol_soon=False):
+    idx = index()
+    debian = [i for i in idx["images"] if i["id"] == "debian-13"][0]
+    debian["support"] = {
+        "release": "13",
+        "security_until": "2026-06-30",
+        "is_eol": is_eol,
+        "eol_soon": eol_soon,
+        "source": "https://endoflife.date/debian",
+    }
+    return idx
+
+
+def test_support_is_returned():
+    targets = select_targets(_eol_index(), images=["debian-13"])
+    assert targets[0]["support"]["security_until"] == "2026-06-30"
+
+
+def test_eol_warn_keeps_the_image():
+    targets, warnings = apply_eol_policy(select_targets(_eol_index(), images=["debian-13"]), "warn")
+    assert [t["image_id"] for t in targets] == ["debian-13"]
+    assert warnings == [
+        "debian-13: release 13 reached its upstream end of life on 2026-06-30 (imported anyway)"
+    ]
+
+
+def test_eol_skip_leaves_it_out():
+    targets = apply_eol_policy(select_targets(_eol_index()), "skip")[0]
+    assert "debian-13" not in [t["image_id"] for t in targets]
+
+
+def test_eol_fail_refuses():
+    with pytest.raises(OicIndexError, match="past their upstream end of life: debian-13"):
+        apply_eol_policy(select_targets(_eol_index()), "fail")
+
+
+def test_eol_soon_only_warns():
+    targets, warnings = apply_eol_policy(select_targets(_eol_index(False, True)), "fail")
+    assert "debian-13" in [t["image_id"] for t in targets]
+    assert len(warnings) == 1
+
+
+def test_malformed_support_is_ignored():
+    idx = index()
+    idx["images"][0]["support"] = "soon"
+    targets, warnings = apply_eol_policy(select_targets(idx, images=[idx["images"][0]["id"]]), "fail")
+    assert targets[0]["support"] is None
+    assert warnings == []

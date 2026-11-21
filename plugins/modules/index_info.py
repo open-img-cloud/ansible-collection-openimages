@@ -70,6 +70,16 @@ options:
         stable name and the prefix.
     type: dict
     default: {}
+  eol:
+    description:
+      - Images whose upstream release is past its end of life (U(https://endoflife.date)
+        dates published in the index).
+      - C(warn) returns them with a warning, C(skip) leaves them out, C(fail) fails the task.
+      - Within six months of the end of life, a warning only.
+    type: str
+    choices: [warn, skip, fail]
+    default: warn
+    version_added: "0.1.0"
   timeout:
     description:
       - HTTP timeout in seconds.
@@ -182,6 +192,29 @@ targets:
     properties:
       description: Complete Glance property set, C(oic_*) keys included.
       type: dict
+    support:
+      description:
+        - Upstream support of the image's release, from U(https://endoflife.date) at catalog
+          build time, or null when the catalog has none.
+      type: dict
+      contains:
+        release:
+          description: Upstream release.
+          type: str
+          sample: "13"
+        security_until:
+          description: End of life (end of security support), ISO date.
+          type: str
+          sample: "2030-06-30"
+        is_eol:
+          description: The end of life is past.
+          type: bool
+        eol_soon:
+          description: The end of life is within six months.
+          type: bool
+        source:
+          description: endoflife.date page of the product.
+          type: str
 """
 
 import json
@@ -194,6 +227,7 @@ from ansible_collections.openimages.cloud.plugins.module_utils.oic_index import 
     DEFAULT_INDEX_URL,
     MAX_INDEX_BYTES,
     OicIndexError,
+    apply_eol_policy,
     select_targets,
 )
 
@@ -233,6 +267,7 @@ def main():
             timeout=dict(type="int", default=30),
             validate_certs=dict(type="bool", default=True),
             http_agent=dict(type="str", default="ansible-httpget"),
+            eol=dict(type="str", default="warn", choices=["warn", "skip", "fail"]),
         ),
         supports_check_mode=True,
     )
@@ -248,8 +283,11 @@ def main():
             name_prefix=module.params["name_prefix"],
             names=module.params["names"],
         )
+        targets, warnings = apply_eol_policy(targets, module.params["eol"])
     except OicIndexError as e:
         module.fail_json(msg=to_native(e))
+    for warning in warnings:
+        module.warn(warning)
     if not targets:
         module.fail_json(msg="no artifact matches the selection")
     module.exit_json(
