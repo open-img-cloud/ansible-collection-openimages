@@ -10,7 +10,8 @@
   (Proxmox VE, OpenStack); installs oic-sync 0.2.2 by default.
 - Role `openimages.cloud.oic_mirror`: an internal mirror of the catalog with `oic-sync mirror`
   (system user, mirror directory, hardened service and daily timer, optional nginx server
-  block). Role `oic_sync`: new `oic_sync_configure` (false installs the package only).
+  block), to a local directory or an S3 bucket (`oic_mirror_s3_endpoint_url`, credentials in
+  `oic_mirror_s3_environment`, staging directory; needs oic-sync 0.3.0 or newer). Role `oic_sync`: new `oic_sync_configure` (false installs the package only).
 - End of life: `index_info` returns each target's upstream `support` dates (endoflife.date,
   from the index) and its `eol` option (`warn`, `skip`, `fail`) warns about, leaves out or
   refuses images past their end of life; role variable `glance_image_eol`.

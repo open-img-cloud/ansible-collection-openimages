@@ -14,3 +14,21 @@
         oic_mirror_prune: true
         oic_mirror_nginx: true
         oic_mirror_nginx_install: true
+
+# The same mirror in an S3 bucket, served by the object storage (oic-sync 0.3.0 or newer).
+# Credentials from Ansible Vault.
+- name: Mirror openimages.cloud to an S3 bucket
+  hosts: mirror_s3
+  become: true
+  roles:
+    - role: openimages.cloud.oic_mirror
+      vars:
+        oic_mirror_dest: s3://images/oic
+        oic_mirror_base_url: https://s3.example.net/images/oic
+        oic_mirror_s3_endpoint_url: https://s3.example.net
+        oic_mirror_s3_environment:
+          AWS_ACCESS_KEY_ID: "{{ vault_mirror_access_key }}"
+          AWS_SECRET_ACCESS_KEY: "{{ vault_mirror_secret_key }}"
+          AWS_DEFAULT_REGION: us-east-1
+        oic_mirror_keep: 2
+        oic_mirror_prune: true

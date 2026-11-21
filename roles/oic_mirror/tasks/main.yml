@@ -9,10 +9,14 @@
       - (oic_mirror_images + oic_mirror_variants) | select('search', '\s') | list | length == 0
       - oic_mirror_keep | int >= 1
       - oic_mirror_eol in ['', 'warn', 'skip', 'fail']
+      - oic_mirror_staging_dir is match('^/') and oic_mirror_staging_dir is not search('\s')
+      - oic_mirror_s3_endpoint_url is not search('\s')
+      - oic_mirror_s3_environment.keys() | reject('match', '^[A-Za-z_][A-Za-z0-9_]*$') | list | length == 0
       - not (oic_mirror_nginx and oic_mirror_remote)
     fail_msg: >-
-      oic_mirror_base_url must be an http(s) URL, oic_mirror_dest a path, image ids and variants
-      without spaces, oic_mirror_keep 1 or more, oic_mirror_eol warn, skip or fail, and
+      oic_mirror_base_url must be an http(s) URL, oic_mirror_dest a path or a URL, image ids and
+      variants without spaces, oic_mirror_keep 1 or more, oic_mirror_eol warn, skip or fail,
+      oic_mirror_staging_dir an absolute path, oic_mirror_s3_environment keys variable names, and
       oic_mirror_nginx only serves a local directory.
     quiet: true
   vars:
@@ -31,6 +35,9 @@
           + (['--prune'] if oic_mirror_prune else [])
           + (['--eol', oic_mirror_eol] if oic_mirror_eol else [])
           + (['--index-url', oic_mirror_index_url] if oic_mirror_index_url else [])
+          + (['--staging-dir', oic_mirror_staging_dir]
+             if oic_mirror_dest is match('^[a-z0-9]+://') else [])
+          + (['--s3-endpoint-url', oic_mirror_s3_endpoint_url] if oic_mirror_s3_endpoint_url else [])
           + ([oic_mirror_extra_args] if oic_mirror_extra_args else [])) | join(' ') }}
 
 - name: Install oic-sync
@@ -64,6 +71,43 @@
     group: "{{ oic_mirror_group }}"
     mode: "0755"
   when: oic_mirror_local
+
+# Outside the service cache directory, the staging directory needs its own write access.
+- name: Create the staging directory
+  ansible.builtin.file:
+    path: "{{ oic_mirror_staging_dir }}"
+    state: directory
+    owner: "{{ oic_mirror_user }}"
+    group: "{{ oic_mirror_group }}"
+    mode: "0750"
+  when:
+    - not oic_mirror_local
+    - oic_mirror_staging_dir | regex_replace('/+$', '') != '/var/cache/oic-mirror'
+
+- name: Create the directory of the environment file
+  ansible.builtin.file:
+    path: "{{ oic_mirror_env_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: oic_mirror_s3_environment | length > 0
+
+- name: Write the environment file (S3 credentials)
+  ansible.builtin.template:
+    src: mirror.env.j2
+    dest: "{{ oic_mirror_env_file }}"
+    owner: root
+    group: "{{ oic_mirror_group }}"
+    mode: "0640"
+  no_log: true
+  when: oic_mirror_s3_environment | length > 0
+
+- name: Remove the environment file
+  ansible.builtin.file:
+    path: "{{ oic_mirror_env_file }}"
+    state: absent
+  when: oic_mirror_s3_environment | length == 0
 
 - name: Write the service and the timer
   ansible.builtin.template:

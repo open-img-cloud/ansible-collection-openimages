@@ -1,5 +1,6 @@
 ---
-# Where the mirror is written. A plain string: a local directory today, served by a web server.
+# Where the mirror is written: a local directory, served by a web server, or an S3 bucket
+# (s3://bucket/prefix), served by the object storage itself.
 oic_mirror_dest: /srv/oic-mirror
 # oic_mirror_base_url (required, no default): URL the mirror is served at, written into the
 # mirror index.json, e.g. https://mirror.example.net/oic
@@ -15,6 +16,18 @@ oic_mirror_prune: false
 oic_mirror_eol: ""
 # Another index to mirror from (empty: https://images.openimages.cloud/index.json).
 oic_mirror_index_url: ""
+# S3 destination only. Each qcow2 is downloaded and verified in the staging directory before
+# it is uploaded; the default is the service cache directory, kept between runs so an
+# interrupted download resumes. Plan free space for the largest image (2 GiB).
+oic_mirror_staging_dir: /var/cache/oic-mirror
+# Endpoint of an S3-compatible storage (empty: AWS, or AWS_ENDPOINT_URL below).
+oic_mirror_s3_endpoint_url: ""
+# Credentials and settings of the S3 client, written to oic_mirror_env_file (root:oic-mirror,
+# 0640), e.g. AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_ENDPOINT_URL.
+# Keep the secret in Ansible Vault.
+oic_mirror_s3_environment: {}
+oic_mirror_env_file: /etc/oic-sync/mirror.env
+
 # Other options of oic-sync mirror, appended as is.
 oic_mirror_extra_args: ""
 

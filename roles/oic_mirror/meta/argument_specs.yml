@@ -10,7 +10,9 @@ argument_specs:
         published in the mirror, see the Mirror section of the oic-sync README.
     options:
       oic_mirror_dest:
-        description: Mirror destination, a local directory.
+        description:
+          - Mirror destination, a local directory or an S3 bucket (s3://bucket/prefix).
+          - An S3 destination needs oic-sync 0.3.0 or newer with the s3 extra (included in the packages).
         type: str
         default: /srv/oic-mirror
       oic_mirror_base_url:
@@ -48,6 +50,24 @@ argument_specs:
         description: Index to mirror from (empty, the openimages.cloud index).
         type: str
         default: ""
+      oic_mirror_staging_dir:
+        description: Staging directory of an S3 mirror (download and verification before upload).
+        type: str
+        default: /var/cache/oic-mirror
+      oic_mirror_s3_endpoint_url:
+        description: Endpoint of an S3-compatible storage (--s3-endpoint-url).
+        type: str
+        default: ""
+      oic_mirror_s3_environment:
+        description:
+          - Environment of the service for the S3 client, written to oic_mirror_env_file.
+          - e.g. AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_ENDPOINT_URL.
+        type: dict
+        default: {}
+      oic_mirror_env_file:
+        description: Environment file of the service (root, group of the service user, 0640).
+        type: str
+        default: /etc/oic-sync/mirror.env
       oic_mirror_extra_args:
         description: Other options of oic-sync mirror, appended as is.
         type: str

@@ -27,7 +27,7 @@ The `openimages.cloud` collection brings the signed, boot-tested cloud images of
 |---|---|
 | role `openimages.cloud.glance_image` | Imports images into OpenStack Glance: sha256 checked, cosign signature verified when cosign is installed, Glance properties of the index, stable names |
 | role `openimages.cloud.oic_sync` | Installs [oic-sync](https://github.com/open-img-cloud/oic-sync) from its signed packages and enables its daily timer, on a Proxmox VE node or any Debian/EL host for OpenStack |
-| role `openimages.cloud.oic_mirror` | Runs an internal mirror of the catalog with `oic-sync mirror`: signed images copied to a local directory, refreshed daily, optionally served by nginx |
+| role `openimages.cloud.oic_mirror` | Runs an internal mirror of the catalog with `oic-sync mirror`: signed images copied to a local directory (optionally served by nginx) or an S3 bucket, refreshed daily |
 | module `openimages.cloud.index_info` | Reads the catalog index (`oic-index/v1`) and returns the selected artifacts: URL, digests, names, Glance properties |
 | module `openimages.cloud.glance_info` | Finds the openimages.cloud images of the current project in Glance (`oic_id` property, hidden images included) |
 
@@ -201,13 +201,16 @@ Then, on the clients: `OIC_INDEX_URL=http://mirror.example.net/oic/index.json`.
 | Variable | Default | Meaning |
 |---|---|---|
 | `oic_mirror_base_url` | required | URL the mirror is served at, written into its `index.json` |
-| `oic_mirror_dest` | `/srv/oic-mirror` | mirror directory |
+| `oic_mirror_dest` | `/srv/oic-mirror` | mirror directory, or an S3 bucket (`s3://bucket/prefix`) |
 | `oic_mirror_images` | `[]` | images to mirror (empty: all except the service images) |
 | `oic_mirror_variants` | `[]` | variants to mirror (empty: all) |
 | `oic_mirror_include_service_images` | `false` | also the Octavia, Manila and Trove images |
 | `oic_mirror_keep` | `1` | versions per image, the latest included |
 | `oic_mirror_prune` | `false` | delete versions beyond `oic_mirror_keep` |
 | `oic_mirror_eol` | `""` | end of life policy: `warn`, `skip` or `fail` (empty: oic-sync default, `warn`) |
+| `oic_mirror_s3_endpoint_url` | `""` | endpoint of an S3-compatible storage (`--s3-endpoint-url`) |
+| `oic_mirror_s3_environment` | `{}` | S3 client environment, written to `oic_mirror_env_file` (`/etc/oic-sync/mirror.env`, root:oic-mirror, 0640) |
+| `oic_mirror_staging_dir` | `/var/cache/oic-mirror` | S3 only: where each qcow2 is downloaded and verified before upload |
 | `oic_mirror_index_url`, `oic_mirror_extra_args` | `""` | another index, other `oic-sync mirror` options |
 | `oic_mirror_user`, `oic_mirror_group` | `oic-mirror` | owner of the mirror, user of the service |
 | `oic_mirror_timer`, `oic_mirror_on_calendar`, `oic_mirror_randomized_delay` | `true`, `daily`, `1h` | refresh timer |
@@ -216,6 +219,34 @@ Then, on the clients: `OIC_INDEX_URL=http://mirror.example.net/oic/index.json`.
 | `oic_mirror_nginx` | `false` | write `/etc/nginx/conf.d/oic-mirror.conf`, serving the directory at the path of the base URL |
 | `oic_mirror_nginx_install` | `false` | also install and start nginx |
 | `oic_mirror_nginx_listen`, `oic_mirror_nginx_server_name`, `oic_mirror_nginx_location` | `80`, host and path of the base URL | server block |
+
+### Mirror to an S3 bucket
+
+```yaml
+- role: openimages.cloud.oic_mirror
+  vars:
+    oic_mirror_dest: s3://images/oic
+    oic_mirror_base_url: https://s3.example.net/images/oic
+    oic_mirror_s3_endpoint_url: https://s3.example.net
+    oic_mirror_s3_environment:
+      AWS_ACCESS_KEY_ID: "{{ vault_mirror_access_key }}"
+      AWS_SECRET_ACCESS_KEY: "{{ vault_mirror_secret_key }}"
+      AWS_DEFAULT_REGION: us-east-1
+    oic_mirror_keep: 2
+    oic_mirror_prune: true
+```
+
+The bucket serves the mirror itself: no web server (`oic_mirror_nginx` is refused with an S3
+destination). It needs oic-sync 0.3.0 or newer with the `s3` extra: the packages installed by
+the role and the container image include it, a pipx install needs `pipx install 'oic-sync[s3]'`.
+The S3 client reads the usual AWS settings from `oic_mirror_s3_environment`:
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, and `AWS_ENDPOINT_URL` as an
+alternative to `oic_mirror_s3_endpoint_url`. They land in `/etc/oic-sync/mirror.env` (readable
+by root and the service group only, never logged); keep the secret in Ansible Vault. Each qcow2
+is downloaded and verified in `oic_mirror_staging_dir` (the service cache directory by default,
+kept between runs so an interrupted download resumes) before it is uploaded: plan 2 GiB free
+there. Bucket policies and ACLs are left to you, see
+[S3 bucket](https://github.com/open-img-cloud/oic-sync#s3-bucket) in the oic-sync README.
 
 The nginx server block listens on plain HTTP: add TLS yourself or terminate it in front.
 Integrity does not depend on it (clients check the signed digests), but HTTPS stops an attacker

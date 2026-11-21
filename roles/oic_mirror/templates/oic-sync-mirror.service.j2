@@ -9,15 +9,20 @@ After=network-online.target
 Type=oneshot
 User={{ oic_mirror_user }}
 Group={{ oic_mirror_group }}
-# Sigstore trust root cache.
+# Sigstore trust root cache, and the default staging directory of an S3 mirror: kept between
+# runs (an interrupted download resumes) and writable under ProtectSystem=strict.
 CacheDirectory=oic-mirror
 Environment=HOME=/var/cache/oic-mirror
+# S3 credentials and settings (oic_mirror_s3_environment), when set.
+EnvironmentFile=-{{ oic_mirror_env_file }}
 ExecStart={{ oic_mirror_oic_sync_bin }} {{ oic_mirror_args }}
-# The mirror only needs outbound HTTP(S) and its own directory.
+# The mirror only needs outbound HTTP(S) and its own directory (or staging directory).
 NoNewPrivileges=yes
 ProtectSystem=strict
 {% if oic_mirror_local %}
 ReadWritePaths={{ oic_mirror_dest }}
+{% elif oic_mirror_staging_dir | regex_replace('/+$', '') != '/var/cache/oic-mirror' %}
+ReadWritePaths={{ oic_mirror_staging_dir }}
 {% endif %}
 ProtectHome=yes
 PrivateTmp=yes
