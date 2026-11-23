@@ -1,0 +1,56 @@
+name: Release
+
+# A v<version> tag builds the collection, publishes it on Ansible Galaxy and
+# attaches the tarball to a GitHub release. The tag must match galaxy.yml.
+# Needs the repository secret GALAXY_API_KEY (galaxy.ansible.com > Preferences
+# > API key, account owning the "openimages" namespace).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  galaxy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: ansible_collections/openimages/cloud
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Check that the tag matches galaxy.yml
+        working-directory: ansible_collections/openimages/cloud
+        run: |
+          version=$(sed -n 's/^version: *//p' galaxy.yml)
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match galaxy.yml version ${version}"
+            exit 1
+          fi
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+      - name: Build
+        working-directory: ansible_collections/openimages/cloud
+        run: |
+          pip install -q ansible-core
+          ansible-galaxy collection build --output-path "$RUNNER_TEMP/dist"
+          ls -l "$RUNNER_TEMP/dist"
+      - name: Publish to Ansible Galaxy
+        env:
+          GALAXY_API_KEY: ${{ secrets.GALAXY_API_KEY }}
+        run: |
+          if [ -z "$GALAXY_API_KEY" ]; then
+            echo "::error::secret GALAXY_API_KEY is not set"
+            exit 1
+          fi
+          ansible-galaxy collection publish "$RUNNER_TEMP/dist/openimages-cloud-${VERSION}.tar.gz" \
+            --api-key "$GALAXY_API_KEY"
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: ansible_collections/openimages/cloud
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/dist/openimages-cloud-${VERSION}.tar.gz" \
+            --title "openimages.cloud ${VERSION}" \
+            --notes "Collection openimages.cloud ${VERSION}: https://galaxy.ansible.com/ui/repo/published/openimages/cloud/ . Changes: CHANGELOG.md."

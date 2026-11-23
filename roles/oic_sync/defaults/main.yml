@@ -1,6 +1,6 @@
 ---
 # oic-sync release to install (a GitHub release of open-img-cloud/oic-sync with packages).
-oic_sync_version: "0.3.0"
+oic_sync_version: "0.4.0"
 oic_sync_release_url: https://github.com/open-img-cloud/oic-sync/releases/download/v{{ oic_sync_version }}
 # Where the package is downloaded on the host.
 oic_sync_download_dir: /var/cache/oic-sync-packages
