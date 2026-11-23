@@ -107,7 +107,8 @@
             "oic_sha256": "88aaf24f4b7296e367e1470033916cdb3e97b893d597afb4315e23ed5bfe45e2"
           }
         }
-      ]
+      ],
+      "min_ram": 512
     },
     {
       "id": "cirros",
@@ -171,7 +172,8 @@
             "oic_sha256": "7d6355852aeb6dbcd191bcda7cd74f1536cfe5cbf8a10495a7283a8396e4b75b"
           }
         }
-      ]
+      ],
+      "min_ram": 128
     },
     {
       "id": "debian-13",
@@ -236,7 +238,8 @@
             "oic_sha256": "6706a0cddad28e3184586d3043949f9ce1223e7fc53ae8425993ae1d822a0822"
           }
         }
-      ]
+      ],
+      "min_ram": 1024
     }
   ]
 }

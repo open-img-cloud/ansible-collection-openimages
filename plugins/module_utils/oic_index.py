@@ -188,6 +188,8 @@ def select_targets(
                     "size": artifact.get("size"),
                     "virtual_size": artifact.get("virtual_size"),
                     "min_disk": min_disk_gib(artifact.get("virtual_size")),
+                    # Glance min_ram in MiB (index field since 2026-11, SCS-0102), or None.
+                    "min_ram": image.get("min_ram"),
                     "format": artifact.get("format") or "qcow2",
                     "firmware": artifact.get("firmware"),
                     "arch": artifact.get("arch"),
