@@ -12,7 +12,7 @@ argument_specs:
       oic_sync_version:
         description: oic-sync version (a release with packages).
         type: str
-        default: "0.3.0"
+        default: "0.4.0"
       oic_sync_release_url:
         description: Base URL of the release assets.
         type: str

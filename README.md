@@ -157,7 +157,7 @@ images are set (both timers run daily).
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `oic_sync_version` | `0.3.0` | oic-sync release |
+| `oic_sync_version` | `0.4.0` | oic-sync release |
 | `oic_sync_proxmox_images` | `[]` | images to keep as Proxmox VE templates |
 | `oic_sync_proxmox_extra_args` | `""` | other `oic-sync proxmox sync` options |
 | `oic_sync_openstack_cloud` | `""` | clouds.yaml entry (`OS_CLOUD`) |
