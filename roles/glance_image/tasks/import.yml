@@ -76,6 +76,7 @@
         disk_format: "{{ glance_image_target.format }}"
         container_format: bare
         min_disk: "{{ glance_image_target.min_disk | default(omit, true) }}"
+        min_ram: "{{ glance_image_target.min_ram | default(omit, true) }}"
         visibility: "{{ glance_image_visibility }}"
         tags: "{{ glance_image_tags }}"
         properties: "{{ glance_image_target.properties }}"
@@ -95,6 +96,7 @@
         disk_format: "{{ glance_image_target.format }}"
         container_format: bare
         min_disk: "{{ glance_image_target.min_disk | default(omit, true) }}"
+        min_ram: "{{ glance_image_target.min_ram | default(omit, true) }}"
         visibility: "{{ glance_image_visibility }}"
         tags: "{{ glance_image_tags }}"
         properties: "{{ glance_image_target.properties }}"

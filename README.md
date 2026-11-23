@@ -99,7 +99,7 @@ What the role does:
    artifact, the signer identity regexp and the OIDC issuer of the index `signing` section (or
    your own, `glance_image_certificate_identity_regexp`).
 5. **Upload** with `openstack.cloud.image` under a temporary name ("Debian 13
-   (13-20261111-2659, 6706a0cddad2)"), with `min_disk` from the virtual size and every Glance
+   (13-20261111-2659, 6706a0cddad2)"), with `min_disk` from the virtual size, `min_ram` from the index and every Glance
    property of the index plus `oic_id`, `oic_version`, `oic_sha256` (and `oic_variant`).
 6. **Compare** what Glance stored with the index: size, and the multihash Glance computed
    (`os_hash_algo`/`os_hash_value`, sha512 by default). On any failure, the new image is

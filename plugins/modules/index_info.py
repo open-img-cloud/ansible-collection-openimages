@@ -185,6 +185,9 @@ targets:
     min_disk:
       description: Virtual size rounded up to GiB, or null.
       type: int
+    min_ram:
+      description: Smallest RAM the image boots with, in MiB (Glance min_ram), or null with an older index.
+      type: int
     format:
       description: Disk format.
       type: str

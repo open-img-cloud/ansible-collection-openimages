@@ -64,6 +64,7 @@ def test_properties_precedence_and_oic_keys():
     assert props["oic_sha256"] == debian["sha256"]
     assert "oic_variant" not in props
     assert debian["min_disk"] == 3
+    assert debian["min_ram"] == 1024
 
 
 def test_variant_property_and_firmware():
