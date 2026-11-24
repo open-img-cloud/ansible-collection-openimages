@@ -53,7 +53,7 @@ oic-sync later, and the reverse.
 
 ```sh
 ansible-galaxy collection install openimages.cloud
-# before the Galaxy release, from git:
+# development version, from git:
 ansible-galaxy collection install git+https://github.com/open-img-cloud/ansible-collection-openimages.git
 ```
 
