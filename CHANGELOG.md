@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-24)
 
 - Modules `openimages.cloud.index_info` (read and select the catalog index) and
   `openimages.cloud.glance_info` (find the openimages.cloud images of a project).
